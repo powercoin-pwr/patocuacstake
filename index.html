@@ -8,8 +8,9 @@
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            margin-top: 50px;
+            margin: 50px auto;
             background-color: #f5f5f5;
+            max-width: 900px;
         }
         h1 {
             color: #333;
@@ -19,9 +20,10 @@
         }
         input, select, button {
             margin: 10px;
-            padding: 8px;
+            padding: 10px;
             border-radius: 4px;
             border: 1px solid #ccc;
+            font-size: 16px;
         }
         button {
             background-color: #4CAF50;
@@ -40,12 +42,11 @@
         table {
             margin: 20px auto;
             border-collapse: collapse;
-            width: 80%;
-            max-width: 800px;
+            width: 100%;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 10px;
+            padding: 12px;
             text-align: center;
         }
         th {
@@ -55,20 +56,47 @@
         #message {
             color: #d9534f;
             font-weight: bold;
+            margin: 10px 0;
         }
-        #addressDisplay {
+        #status {
+            color: #31708f;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        #addressDisplay, #balanceDisplay {
             word-break: break-all;
+            font-size: 14px;
+        }
+        .section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        @media (max-width: 600px) {
+            input, select, button {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            table {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
 <body>
     <h1>Staking DApp - PATOCUAC</h1>
-    <div id="walletSection">
+    <div class="section" id="walletSection">
         <button id="connectButton">Conectar Wallet</button>
+        <button id="disconnectButton" style="display: none;">Desconectar Wallet</button>
         <p id="addressDisplay">Wallet no conectada</p>
+        <p id="balanceDisplay">Saldo WPLS: No disponible</p>
+        <p id="status">Estado: Desconectado</p>
+        <p id="message"></p>
     </div>
 
-    <div id="stakeSection">
+    <div class="section" id="stakeSection">
         <h2>Hacer Stake</h2>
         <input type="number" id="amountInput" placeholder="Cantidad de WPLS" min="0" step="0.01">
         <select id="durationSelect">
@@ -79,10 +107,11 @@
             <option value="15552000">180 días</option>
             <option value="31104000">360 días</option>
         </select>
-        <button id="stakeButton">Hacer Stake</button>
+        <button id="approveButton" disabled>Aprobar WPLS</button>
+        <button id="stakeButton" disabled>Hacer Stake</button>
     </div>
 
-    <div id="stakesSection">
+    <div class="section" id="stakesSection">
         <h2>Tus Stakes</h2>
         <table id="stakesTable">
             <thead>
@@ -97,15 +126,11 @@
                     <th>Acciones</th>
                 </tr>
             </thead>
-            <tbody>
-                <!-- Stakes serán insertados aquí -->
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
 
-    <p id="message"></p>
-
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-6.13.2.umd.min.js"></script>
     <script>
         // ABI completo del contrato PATOCUAC
         const contractABI = [
@@ -117,18 +142,8 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "rewardAmount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "uint256", "name": "stakeId", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "rewardAmount", "type": "uint256" }
                 ],
                 "name": "RewardsClaimed",
                 "type": "event"
@@ -136,18 +151,8 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "rewardAmount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "uint256", "name": "stakeId", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "rewardAmount", "type": "uint256" }
                 ],
                 "name": "RewardsForfeited",
                 "type": "event"
@@ -155,18 +160,8 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "address",
-                        "name": "from",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "address", "name": "from", "type": "address" },
+                    { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
                 ],
                 "name": "SpwrBurned",
                 "type": "event"
@@ -174,18 +169,8 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "address", "name": "to", "type": "address" },
+                    { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
                 ],
                 "name": "SpwrMinted",
                 "type": "event"
@@ -193,30 +178,10 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "duration",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "uint256", "name": "stakeId", "type": "uint256" },
+                    { "indexed": false, "internalType": "address", "name": "owner", "type": "address" },
+                    { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "duration", "type": "uint256" }
                 ],
                 "name": "StakeCreated",
                 "type": "event"
@@ -224,18 +189,8 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "penaltyAmount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "uint256", "name": "stakeId", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "penaltyAmount", "type": "uint256" }
                 ],
                 "name": "StakeTerminatedEarly",
                 "type": "event"
@@ -243,24 +198,9 @@
             {
                 "anonymous": false,
                 "inputs": [
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "plpAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "rewardAmount",
-                        "type": "uint256"
-                    }
+                    { "indexed": false, "internalType": "uint256", "name": "stakeId", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "plpAmount", "type": "uint256" },
+                    { "indexed": false, "internalType": "uint256", "name": "rewardAmount", "type": "uint256" }
                 ],
                 "name": "StakeWithdrawn",
                 "type": "event"
@@ -268,251 +208,131 @@
             {
                 "inputs": [],
                 "name": "APR_DROP",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "CLAIM_WINDOW",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "FORFEIT_ADDRESS",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "MAX_REWARD_POOL",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "MIN_APR",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PERIOD_180_DAYS",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PERIOD_30_DAYS",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PERIOD_360_DAYS",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PERIOD_60_DAYS",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PERIOD_90_DAYS",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PLP",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PULSE_X_ROUTER",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PWR",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "PWR_DROP_THRESHOLD",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "SLIPPAGE_TOLERANCE",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "TIME_MARGIN",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "WPLS",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "duration",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "duration", "type": "uint256" }],
                 "name": "calculateApr",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "stakeId", "type": "uint256" }],
                 "name": "claimRewards",
                 "outputs": [],
                 "stateMutability": "nonpayable",
@@ -521,198 +341,78 @@
             {
                 "inputs": [],
                 "name": "currentApr",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
                 "name": "depositRewardPool",
                 "outputs": [],
                 "stateMutability": "nonpayable",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "stakeId", "type": "uint256" }],
                 "name": "getStakeInfo",
                 "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "wplsAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "pwrBought",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "plpAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "spwrAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "duration",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "startTime",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "endTime",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "rewardAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "isActive",
-                        "type": "bool"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "isClaimed",
-                        "type": "bool"
-                    }
+                    { "internalType": "address", "name": "owner", "type": "address" },
+                    { "internalType": "uint256", "name": "wplsAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "pwrBought", "type": "uint256" },
+                    { "internalType": "uint256", "name": "plpAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "spwrAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "duration", "type": "uint256" },
+                    { "internalType": "uint256", "name": "startTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "endTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "rewardAmount", "type": "uint256" },
+                    { "internalType": "bool", "name": "isActive", "type": "bool" },
+                    { "internalType": "bool", "name": "isClaimed", "type": "bool" }
                 ],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "user",
-                        "type": "address"
-                    }
-                ],
+                "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
                 "name": "getUserStakes",
-                "outputs": [
-                    {
-                        "internalType": "uint256[]",
-                        "name": "",
-                        "type": "uint256[]"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "lastUpdateTime",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "rewardPoolBalance",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
+                    { "internalType": "address", "name": "", "type": "address" },
+                    { "internalType": "address", "name": "", "type": "address" }
                 ],
                 "name": "spwrAllowances",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
+                "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
                 "name": "spwrBalances",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "duration",
-                        "type": "uint256"
-                    }
+                    { "internalType": "uint256", "name": "amount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "duration", "type": "uint256" }
                 ],
                 "name": "stake",
                 "outputs": [],
@@ -722,93 +422,31 @@
             {
                 "inputs": [],
                 "name": "stakeCount",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "name": "stakes",
                 "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "wplsAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "pwrBought",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "plpAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "spwrAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "duration",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "startTime",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "endTime",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "rewardAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "isActive",
-                        "type": "bool"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "isClaimed",
-                        "type": "bool"
-                    }
+                    { "internalType": "address", "name": "owner", "type": "address" },
+                    { "internalType": "uint256", "name": "wplsAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "pwrBought", "type": "uint256" },
+                    { "internalType": "uint256", "name": "plpAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "spwrAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "duration", "type": "uint256" },
+                    { "internalType": "uint256", "name": "startTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "endTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "rewardAmount", "type": "uint256" },
+                    { "internalType": "bool", "name": "isActive", "type": "bool" },
+                    { "internalType": "bool", "name": "isClaimed", "type": "bool" }
                 ],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "stakeId", "type": "uint256" }],
                 "name": "terminateStakeEarly",
                 "outputs": [],
                 "stateMutability": "nonpayable",
@@ -817,26 +455,14 @@
             {
                 "inputs": [],
                 "name": "totalPwrDistributed",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "totalSpwrSupply",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
@@ -849,36 +475,16 @@
             },
             {
                 "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
+                    { "internalType": "address", "name": "", "type": "address" },
+                    { "internalType": "uint256", "name": "", "type": "uint256" }
                 ],
                 "name": "userStakes",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "stakeId",
-                        "type": "uint256"
-                    }
-                ],
+                "inputs": [{ "internalType": "uint256", "name": "stakeId", "type": "uint256" }],
                 "name": "withdrawStake",
                 "outputs": [],
                 "stateMutability": "nonpayable",
@@ -916,9 +522,7 @@
             },
             {
                 "constant": true,
-                "inputs": [
-                    { "name": "account", "type": "address" }
-                ],
+                "inputs": [{ "name": "account", "type": "address" }],
                 "name": "balanceOf",
                 "outputs": [{ "name": "", "type": "uint256" }],
                 "type": "function"
@@ -943,233 +547,362 @@
         let signer;
         let address;
         let contract;
+        let wplsContract;
         const messageElement = document.getElementById('message');
+        const statusElement = document.getElementById('status');
+        const addressDisplay = document.getElementById('addressDisplay');
+        const balanceDisplay = document.getElementById('balanceDisplay');
         const stakesTableBody = document.getElementById('stakesTable').querySelector('tbody');
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const approveButton = document.getElementById('approveButton');
+        const stakeButton = document.getElementById('stakeButton');
 
-        // Configurar la red PulseChain
+        // Función para registrar logs
+        function log(message) {
+            const timestamp = new Date().toISOString();
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        // Mostrar mensaje en la interfaz
+        function showMessage(message, isError = false) {
+            messageElement.textContent = message;
+            messageElement.style.color = isError ? '#d9534f' : '#5cb85c';
+            log(message);
+        }
+
+        // Actualizar estado
+        function updateStatus(status, isError = false) {
+            statusElement.textContent = `Estado: ${status}`;
+            statusElement.style.color = isError ? '#d9534f' : '#31708f';
+            log(status);
+        }
+
+        // Configurar PulseChain
         async function setupPulseChain() {
             try {
-                // Añadir PulseChain si no está configurada
+                log('Configurando PulseChain...');
                 await window.ethereum.request({
                     method: 'wallet_addEthereumChain',
                     params: [pulseChainConfig]
                 });
-                // Cambiar a PulseChain
                 await window.ethereum.request({
                     method: 'wallet_switchEthereumChain',
                     params: [{ chainId: pulseChainId }],
                 });
-                console.log('Conectado a PulseChain');
-                messageElement.textContent = 'Conectado a PulseChain';
+                updateStatus('Conectado a PulseChain');
+                return true;
             } catch (error) {
-                console.error('Error al configurar PulseChain:', error);
-                messageElement.textContent = 'Error al configurar PulseChain: ' + error.message;
-                throw error;
+                log(`Error al configurar PulseChain: ${error.message}`);
+                showMessage(`Error al configurar PulseChain: ${error.message}`, true);
+                return false;
             }
         }
 
-        // Conectar la wallet
-        document.getElementById('connectButton').addEventListener('click', async () => {
-            if (!window.ethereum) {
-                messageElement.textContent = 'Por favor, instala MetaMask';
-                console.error('MetaMask no detectado');
-                return;
-            }
-
+        // Verificar saldo de PLS (gas)
+        async function checkPlsBalance() {
             try {
-                // Solicitar acceso a las cuentas
-                await window.ethereum.request({ method: 'eth_requestAccounts' });
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-                signer = provider.getSigner();
-                address = await signer.getAddress();
-                document.getElementById('addressDisplay').textContent = `Dirección: ${address}`;
-                console.log('Wallet conectada:', address);
-
-                // Configurar y verificar la red
-                const network = await provider.getNetwork();
-                if (network.chainId !== parseInt(pulseChainId, 16)) {
-                    console.log('Red incorrecta, configurando PulseChain...');
-                    await setupPulseChain();
-                } else {
-                    console.log('Ya está en PulseChain');
+                const balance = await provider.getBalance(address);
+                const minBalance = ethers.parseEther('0.1');
+                if (balance.lt(minBalance)) {
+                    throw new Error(`Saldo insuficiente de PLS. Tienes ${ethers.formatEther(balance)} PLS, necesitas al menos 0.1 PLS`);
                 }
-
-                // Instancia del contrato
-                contract = new ethers.Contract(contractAddress, contractABI, signer);
-                console.log('Contrato instanciado:', contractAddress);
-
-                messageElement.textContent = `Wallet conectada: ${address}`;
-                await loadUserStakes();
+                log(`Saldo PLS: ${ethers.formatEther(balance)}`);
+                return true;
             } catch (error) {
-                console.error('Error al conectar la wallet:', error);
-                messageElement.textContent = 'Error al conectar la wallet: ' + error.message;
+                log(`Error al verificar saldo PLS: ${error.message}`);
+                throw error;
             }
-        });
+        }
 
         // Verificar saldo de WPLS
-        async function checkWplsBalance(amount) {
+        async function checkWplsBalance(amount = null) {
             try {
-                const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
                 const balance = await wplsContract.balanceOf(address);
-                const amountWei = ethers.utils.parseEther(amount);
-                console.log('Saldo WPLS:', ethers.utils.formatEther(balance), 'WPLS requerido:', amount);
-                if (balance.lt(amountWei)) {
-                    throw new Error(`Saldo insuficiente de WPLS. Tienes ${ethers.utils.formatEther(balance)} WPLS, necesitas ${amount} WPLS`);
+                balanceDisplay.textContent = `Saldo WPLS: ${ethers.formatEther(balance)}`;
+                log(`Saldo WPLS: ${ethers.formatEther(balance)}`);
+                if (amount) {
+                    const amountWei = ethers.parseEther(amount);
+                    if (balance.lt(amountWei)) {
+                        throw new Error(`Saldo insuficiente. Tienes ${ethers.formatEther(balance)} WPLS, necesitas ${amount} WPLS`);
+                    }
                 }
+                return true;
             } catch (error) {
-                console.error('Error al verificar saldo WPLS:', error);
+                log(`Error al verificar saldo WPLS: ${error.message}`);
                 throw error;
             }
         }
 
-        // Aprobar WPLS si es necesario
-        async function approveWplsIfNeeded(amount) {
+        // Aprobar WPLS
+        async function approveWpls(amount) {
             try {
-                const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
+                const amountWei = ethers.parseEther(amount);
                 const allowance = await wplsContract.allowance(address, contractAddress);
-                const amountWei = ethers.utils.parseEther(amount);
-                console.log('Allowance actual:', ethers.utils.formatEther(allowance), 'WPLS requerido:', amount);
+                log(`Allowance actual: ${ethers.formatEther(allowance)}, Requerido: ${amount}`);
 
                 if (allowance.lt(amountWei)) {
-                    messageElement.textContent = 'Aprobando WPLS...';
-                    console.log('Iniciando aprobación de WPLS...');
-                    const tx = await wplsContract.approve(contractAddress, ethers.constants.MaxUint256, {
-                        gasLimit: 100000 // Ajustar según sea necesario
+                    updateStatus('Aprobando WPLS...');
+                    showMessage('Solicitando aprobación en MetaMask...');
+                    const tx = await wplsContract.approve(contractAddress, amountWei, {
+                        gasLimit: 150000
                     });
-                    console.log('Transacción de aprobación enviada:', tx.hash);
+                    log(`Transacción de aprobación: ${tx.hash}`);
                     await tx.wait();
-                    messageElement.textContent = 'Aprobación de WPLS exitosa';
-                    console.log('Aprobación de WPLS completada');
+                    showMessage('Aprobación exitosa');
+                    updateStatus('WPLS aprobado');
                 } else {
-                    console.log('Aprobación no necesaria, allowance suficiente');
+                    showMessage('Aprobación no necesaria');
+                    log('Allowance suficiente');
                 }
+                stakeButton.disabled = false;
+                return true;
             } catch (error) {
-                console.error('Error al aprobar WPLS:', error);
-                messageElement.textContent = 'Error al aprobar WPLS: ' + error.message;
-                throw error;
+                log(`Error al aprobar WPLS: ${error.message}`);
+                throw new Error(`Error al aprobar: ${error.message}`);
             }
         }
 
-        // Realizar el stake
-        document.getElementById('stakeButton').addEventListener('click', async () => {
-            if (!signer) {
-                messageElement.textContent = 'Por favor, conecta tu wallet primero';
-                console.error('Wallet no conectada');
-                return;
-            }
-
-            const amount = document.getElementById('amountInput').value;
-            const duration = document.getElementById('durationSelect').value;
-
-            if (!amount || amount <= 0 || !duration) {
-                messageElement.textContent = 'Ingresa una cantidad y duración válidas';
-                console.error('Cantidad o duración inválidas:', { amount, duration });
+        // Conectar wallet
+        async function connectWallet() {
+            if (!window.ethereum) {
+                showMessage('Por favor, instala MetaMask', true);
+                updateStatus('MetaMask no detectado', true);
                 return;
             }
 
             try {
-                // Verificar saldo de WPLS
-                console.log('Verificando saldo WPLS...');
-                await checkWplsBalance(amount);
+                log('Solicitando conexión a MetaMask...');
+                updateStatus('Conectando wallet...');
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (!accounts || accounts.length === 0) {
+                    throw new Error('No se seleccionaron cuentas');
+                }
 
-                // Aprobar WPLS
-                console.log('Iniciando aprobación de WPLS si es necesario...');
-                await approveWplsIfNeeded(amount);
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                address = await signer.getAddress();
+                addressDisplay.textContent = `Dirección: ${address}`;
+                connectButton.style.display = 'none';
+                disconnectButton.style.display = 'inline-block';
 
-                // Realizar el stake
-                console.log('Iniciando stake...', { amount, duration });
-                const tx = await contract.stake(ethers.utils.parseEther(amount), duration, {
-                    gasLimit: 300000 // Ajustar según sea necesario
-                });
-                messageElement.textContent = 'Realizando stake...';
-                console.log('Transacción de stake enviada:', tx.hash);
-                await tx.wait();
-                messageElement.textContent = 'Stake realizado con éxito';
-                console.log('Stake completado');
+                // Verificar red
+                const network = await provider.getNetwork();
+                if (Number(network.chainId) !== parseInt(pulseChainId, 16)) {
+                    log('Red incorrecta, configurando PulseChain...');
+                    const success = await setupPulseChain();
+                    if (!success) throw new Error('No se pudo cambiar a PulseChain');
+                } else {
+                    log('Red correcta: PulseChain');
+                }
+
+                // Instanciar contratos
+                contract = new ethers.Contract(contractAddress, contractABI, signer);
+                wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
+                log('Contratos instanciados');
+
+                // Verificar saldos
+                await checkPlsBalance();
+                await checkWplsBalance();
+
+                updateStatus('Wallet conectada');
+                showMessage(`Conectado: ${address.slice(0, 6)}...${address.slice(-4)}`);
+                approveButton.disabled = false;
                 await loadUserStakes();
             } catch (error) {
-                console.error('Error durante el stake:', error);
-                messageElement.textContent = 'Error durante el stake: ' + error.message;
+                log(`Error al conectar: ${error.message}`);
+                showMessage(`Error al conectar: ${error.message}`, true);
+                updateStatus('Error al conectar', true);
             }
-        });
+        }
+
+        // Desconectar wallet
+        async function disconnectWallet() {
+            provider = null;
+            signer = null;
+            address = null;
+            contract = null;
+            wplsContract = null;
+            addressDisplay.textContent = 'Wallet no conectada';
+            balanceDisplay.textContent = 'Saldo WPLS: No disponible';
+            connectButton.style.display = 'inline-block';
+            disconnectButton.style.display = 'none';
+            approveButton.disabled = true;
+            stakeButton.disabled = true;
+            stakesTableBody.innerHTML = '';
+            updateStatus('Desconectado');
+            showMessage('Wallet desconectada');
+            log('Wallet desconectada');
+        }
+
+        // Realizar stake
+        async function stake(amount, duration) {
+            try {
+                updateStatus('Realizando stake...');
+                showMessage('Solicitando stake en MetaMask...');
+                log(`Iniciando stake: ${amount} WPLS, duración: ${duration} segundos`);
+                const tx = await contract.stake(ethers.parseEther(amount), duration, {
+                    gasLimit: 350000
+                });
+                log(`Transacción de stake: ${tx.hash}`);
+                await tx.wait();
+                showMessage('Stake realizado con éxito');
+                updateStatus('Stake completado');
+                await checkWplsBalance();
+                await loadUserStakes();
+            } catch (error) {
+                log(`Error al hacer stake: ${error.message}`);
+                throw new Error(`Error al hacer stake: ${error.message}`);
+            }
+        }
 
         // Cargar stakes del usuario
         async function loadUserStakes() {
             if (!contract || !address) {
-                console.error('Contrato o dirección no definidos');
+                log('Contrato o dirección no definidos');
                 return;
             }
 
             try {
-                console.log('Cargando stakes del usuario:', address);
+                updateStatus('Cargando stakes...');
+                log(`Cargando stakes para: ${address}`);
                 const stakeIds = await contract.getUserStakes(address);
                 stakesTableBody.innerHTML = '';
-                console.log('Stake IDs:', stakeIds);
 
-                for (let id of stakeIds) {
+                for (const id of stakeIds) {
                     const stake = await contract.getStakeInfo(id);
                     const now = Math.floor(Date.now() / 1000);
                     const canClaim = stake.isActive && !stake.isClaimed && now >= (stake.endTime - 3600);
-                    console.log('Stake info:', { id: id.toString(), stake });
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${id.toString()}</td>
-                        <td>${ethers.utils.formatEther(stake.wplsAmount)}</td>
+                        <td>${ethers.formatEther(stake.wplsAmount)}</td>
                         <td>${stake.duration / 86400}</td>
                         <td>${new Date(stake.startTime * 1000).toLocaleString()}</td>
                         <td>${new Date(stake.endTime * 1000).toLocaleString()}</td>
-                        <td>${ethers.utils.formatEther(stake.rewardAmount)}</td>
+                        <td>${ethers.formatEther(stake.rewardAmount)}</td>
                         <td>${stake.isActive ? 'Activo' : 'Inactivo'}</td>
                         <td>
                             ${canClaim ? `<button onclick="claimRewards(${id})">Reclamar</button>` : ''}
-                            ${stake.isActive ? `<button onclick="terminateEarly(${id})">Terminar Antes</button>` : ''}
+                            ${stake.isActive ? `<button onclick="terminateEarly(${id})">Terminar</button>` : ''}
                         </td>
                     `;
                     stakesTableBody.appendChild(row);
                 }
+                updateStatus('Stakes cargados');
+                log('Stakes cargados');
             } catch (error) {
-                console.error('Error al cargar stakes:', error);
-                messageElement.textContent = 'Error al cargar stakes: ' + error.message;
+                log(`Error al cargar stakes: ${error.message}`);
+                showMessage(`Error al cargar stakes: ${error.message}`, true);
+                updateStatus('Error al cargar stakes', true);
             }
         }
 
         // Reclamar recompensas
         window.claimRewards = async (stakeId) => {
             try {
-                console.log('Reclamando recompensas para stake ID:', stakeId);
+                updateStatus('Reclamando recompensas...');
+                showMessage('Solicitando reclamo en MetaMask...');
+                log(`Reclamando recompensas para stake ID: ${stakeId}`);
                 const tx = await contract.claimRewards(stakeId, {
-                    gasLimit: 200000 // Ajustar según sea necesario
+                    gasLimit: 200000
                 });
-                messageElement.textContent = 'Reclamando recompensas...';
-                console.log('Transacción de reclamo enviada:', tx.hash);
+                log(`Transacción de reclamo: ${tx.hash}`);
                 await tx.wait();
-                messageElement.textContent = 'Recompensas reclamadas con éxito';
-                console.log('Recompensas reclamadas');
+                showMessage('Recompensas reclamadas');
+                updateStatus('Reclamo completado');
                 await loadUserStakes();
             } catch (error) {
-                console.error('Error al reclamar recompensas:', error);
-                messageElement.textContent = 'Error al reclamar recompensas: ' + error.message;
+                log(`Error al reclamar: ${error.message}`);
+                showMessage(`Error al reclamar: ${error.message}`, true);
+                updateStatus('Error al reclamar', true);
             }
         };
 
-        // Terminar stake antes de tiempo
+        // Terminar stake anticipadamente
         window.terminateEarly = async (stakeId) => {
             try {
-                console.log('Terminando stake antes de tiempo para ID:', stakeId);
+                updateStatus('Terminando stake...');
+                showMessage('Solicitando terminación en MetaMask...');
+                log(`Terminando stake ID: ${stakeId}`);
                 const tx = await contract.terminateStakeEarly(stakeId, {
-                    gasLimit: 200000 // Ajustar según sea necesario
+                    gasLimit: 200000
                 });
-                messageElement.textContent = 'Terminando stake antes de tiempo...';
-                console.log('Transacción de terminación enviada:', tx.hash);
+                log(`Transacción de terminación: ${tx.hash}`);
                 await tx.wait();
-                messageElement.textContent = 'Stake terminado con éxito';
-                console.log('Stake terminado');
+                showMessage('Stake terminado');
+                updateStatus('Terminación completada');
                 await loadUserStakes();
             } catch (error) {
-                console.error('Error al terminar stake:', error);
-                messageElement.textContent = 'Error al terminar stake: ' + error.message;
+                log(`Error al terminar: ${error.message}`);
+                showMessage(`Error al terminar: ${error.message}`, true);
+                updateStatus('Error al terminar', true);
             }
         };
+
+        // Evento para conectar wallet
+        connectButton.addEventListener('click', connectWallet);
+
+        // Evento para desconectar wallet
+        disconnectButton.addEventListener('click', disconnectWallet);
+
+        // Evento para aprobar WPLS
+        approveButton.addEventListener('click', async () => {
+            const amount = document.getElementById('amountInput').value;
+            if (!amount || amount <= 0 || isNaN(amount)) {
+                showMessage('Ingresa una cantidad válida', true);
+                return;
+            }
+
+            try {
+                await checkPlsBalance();
+                await checkWplsBalance(amount);
+                await approveWpls(amount);
+            } catch (error) {
+                showMessage(error.message, true);
+                updateStatus('Error en aprobación', true);
+            }
+        });
+
+        // Evento para hacer stake
+        stakeButton.addEventListener('click', async () => {
+            const amount = document.getElementById('amountInput').value;
+            const duration = document.getElementById('durationSelect').value;
+
+            if (!amount || amount <= 0 || isNaN(amount)) {
+                showMessage('Ingresa una cantidad válida', true);
+                return;
+            }
+            if (!duration) {
+                showMessage('Selecciona una duración válida', true);
+                return;
+            }
+
+            try {
+                await checkPlsBalance();
+                await checkWplsBalance(amount);
+                await stake(amount, duration);
+            } catch (error) {
+                showMessage(error.message, true);
+                updateStatus('Error en stake', true);
+            }
+        });
+
+        // Manejar cambios de cuenta o red
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', async (accounts) => {
+                if (accounts.length === 0) {
+                    disconnectWallet();
+                } else {
+                    await connectWallet();
+                }
+            });
+            window.ethereum.on('chainChanged', async () => {
+                if (provider) {
+                    await connectWallet();
+                }
+            });
+        }
     </script>
 </body>
 </html>
