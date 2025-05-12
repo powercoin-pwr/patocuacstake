@@ -105,7 +105,7 @@
 
     <p id="message"></p>
 
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
     <script>
         // ABI completo del contrato PATOCUAC
         const contractABI = [
@@ -886,8 +886,8 @@
             }
         ];
 
-        // Dirección del contrato desplegado (reemplaza con la real)
-        const contractAddress = '0x1234567890abcdef1234567890abcdef12345678';
+        // Dirección del contrato desplegado
+        const contractAddress = '0xd85Be7f78c03a9ccA7934a9c53080e1C1De9DaaA';
 
         // Dirección del token WPLS en PulseChain
         const wplsAddress = '0xA1077a294dDE1B09bB078844df40758a5D0f9a27';
@@ -925,8 +925,19 @@
             }
         ];
 
-        // Network ID para PulseChain (369 en hexadecimal)
-        const pulseChainId = '0x171';
+        // Configuración de PulseChain
+        const pulseChainId = '0x171'; // 369 en decimal
+        const pulseChainConfig = {
+            chainId: pulseChainId,
+            chainName: 'PulseChain',
+            nativeCurrency: {
+                name: 'Pulse',
+                symbol: 'PLS',
+                decimals: 18
+            },
+            rpcUrls: ['https://rpc.pulsechain.com'],
+            blockExplorerUrls: ['https://scan.pulsechain.com']
+        };
 
         let provider;
         let signer;
@@ -935,56 +946,171 @@
         const messageElement = document.getElementById('message');
         const stakesTableBody = document.getElementById('stakesTable').querySelector('tbody');
 
+        // Configurar la red PulseChain
+        async function setupPulseChain() {
+            try {
+                // Añadir PulseChain si no está configurada
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [pulseChainConfig]
+                });
+                // Cambiar a PulseChain
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: pulseChainId }],
+                });
+                console.log('Conectado a PulseChain');
+                messageElement.textContent = 'Conectado a PulseChain';
+            } catch (error) {
+                console.error('Error al configurar PulseChain:', error);
+                messageElement.textContent = 'Error al configurar PulseChain: ' + error.message;
+                throw error;
+            }
+        }
+
         // Conectar la wallet
         document.getElementById('connectButton').addEventListener('click', async () => {
-            if (window.ethereum) {
-                try {
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    signer = provider.getSigner();
-                    address = await signer.getAddress();
-                    document.getElementById('addressDisplay').textContent = `Dirección: ${address}`;
-
-                    // Verificar red
-                    const network = await provider.getNetwork();
-                    if (network.chainId !== parseInt(pulseChainId, 16)) {
-                        messageElement.textContent = 'Por favor, cambia a PulseChain';
-                        try {
-                            await window.ethereum.request({
-                                method: 'wallet_switchEthereumChain',
-                                params: [{ chainId: pulseChainId }],
-                            });
-                        } catch (switchError) {
-                            messageElement.textContent = 'Error al cambiar a PulseChain: ' + switchError.message;
-                            return;
-                        }
-                    }
-
-                    // Instancia del contrato
-                    contract = new ethers.Contract(contractAddress, contractABI, signer);
-
-                    messageElement.textContent = `Wallet conectada: ${address}`;
-                    loadUserStakes();
-                } catch (error) {
-                    messageElement.textContent = 'Error al conectar la wallet: ' + error.message;
-                }
-            } else {
+            if (!window.ethereum) {
                 messageElement.textContent = 'Por favor, instala MetaMask';
+                console.error('MetaMask no detectado');
+                return;
+            }
+
+            try {
+                // Solicitar acceso a las cuentas
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                address = await signer.getAddress();
+                document.getElementById('addressDisplay').textContent = `Dirección: ${address}`;
+                console.log('Wallet conectada:', address);
+
+                // Configurar y verificar la red
+                const network = await provider.getNetwork();
+                if (network.chainId !== parseInt(pulseChainId, 16)) {
+                    console.log('Red incorrecta, configurando PulseChain...');
+                    await setupPulseChain();
+                } else {
+                    console.log('Ya está en PulseChain');
+                }
+
+                // Instancia del contrato
+                contract = new ethers.Contract(contractAddress, contractABI, signer);
+                console.log('Contrato instanciado:', contractAddress);
+
+                messageElement.textContent = `Wallet conectada: ${address}`;
+                await loadUserStakes();
+            } catch (error) {
+                console.error('Error al conectar la wallet:', error);
+                messageElement.textContent = 'Error al conectar la wallet: ' + error.message;
+            }
+        });
+
+        // Verificar saldo de WPLS
+        async function checkWplsBalance(amount) {
+            try {
+                const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
+                const balance = await wplsContract.balanceOf(address);
+                const amountWei = ethers.utils.parseEther(amount);
+                console.log('Saldo WPLS:', ethers.utils.formatEther(balance), 'WPLS requerido:', amount);
+                if (balance.lt(amountWei)) {
+                    throw new Error(`Saldo insuficiente de WPLS. Tienes ${ethers.utils.formatEther(balance)} WPLS, necesitas ${amount} WPLS`);
+                }
+            } catch (error) {
+                console.error('Error al verificar saldo WPLS:', error);
+                throw error;
+            }
+        }
+
+        // Aprobar WPLS si es necesario
+        async function approveWplsIfNeeded(amount) {
+            try {
+                const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
+                const allowance = await wplsContract.allowance(address, contractAddress);
+                const amountWei = ethers.utils.parseEther(amount);
+                console.log('Allowance actual:', ethers.utils.formatEther(allowance), 'WPLS requerido:', amount);
+
+                if (allowance.lt(amountWei)) {
+                    messageElement.textContent = 'Aprobando WPLS...';
+                    console.log('Iniciando aprobación de WPLS...');
+                    const tx = await wplsContract.approve(contractAddress, ethers.constants.MaxUint256, {
+                        gasLimit: 100000 // Ajustar según sea necesario
+                    });
+                    console.log('Transacción de aprobación enviada:', tx.hash);
+                    await tx.wait();
+                    messageElement.textContent = 'Aprobación de WPLS exitosa';
+                    console.log('Aprobación de WPLS completada');
+                } else {
+                    console.log('Aprobación no necesaria, allowance suficiente');
+                }
+            } catch (error) {
+                console.error('Error al aprobar WPLS:', error);
+                messageElement.textContent = 'Error al aprobar WPLS: ' + error.message;
+                throw error;
+            }
+        }
+
+        // Realizar el stake
+        document.getElementById('stakeButton').addEventListener('click', async () => {
+            if (!signer) {
+                messageElement.textContent = 'Por favor, conecta tu wallet primero';
+                console.error('Wallet no conectada');
+                return;
+            }
+
+            const amount = document.getElementById('amountInput').value;
+            const duration = document.getElementById('durationSelect').value;
+
+            if (!amount || amount <= 0 || !duration) {
+                messageElement.textContent = 'Ingresa una cantidad y duración válidas';
+                console.error('Cantidad o duración inválidas:', { amount, duration });
+                return;
+            }
+
+            try {
+                // Verificar saldo de WPLS
+                console.log('Verificando saldo WPLS...');
+                await checkWplsBalance(amount);
+
+                // Aprobar WPLS
+                console.log('Iniciando aprobación de WPLS si es necesario...');
+                await approveWplsIfNeeded(amount);
+
+                // Realizar el stake
+                console.log('Iniciando stake...', { amount, duration });
+                const tx = await contract.stake(ethers.utils.parseEther(amount), duration, {
+                    gasLimit: 300000 // Ajustar según sea necesario
+                });
+                messageElement.textContent = 'Realizando stake...';
+                console.log('Transacción de stake enviada:', tx.hash);
+                await tx.wait();
+                messageElement.textContent = 'Stake realizado con éxito';
+                console.log('Stake completado');
+                await loadUserStakes();
+            } catch (error) {
+                console.error('Error durante el stake:', error);
+                messageElement.textContent = 'Error durante el stake: ' + error.message;
             }
         });
 
         // Cargar stakes del usuario
         async function loadUserStakes() {
-            if (!contract || !address) return;
+            if (!contract || !address) {
+                console.error('Contrato o dirección no definidos');
+                return;
+            }
 
             try {
+                console.log('Cargando stakes del usuario:', address);
                 const stakeIds = await contract.getUserStakes(address);
                 stakesTableBody.innerHTML = '';
+                console.log('Stake IDs:', stakeIds);
 
                 for (let id of stakeIds) {
                     const stake = await contract.getStakeInfo(id);
                     const now = Math.floor(Date.now() / 1000);
                     const canClaim = stake.isActive && !stake.isClaimed && now >= (stake.endTime - 3600);
+                    console.log('Stake info:', { id: id.toString(), stake });
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${id.toString()}</td>
@@ -1002,56 +1128,26 @@
                     stakesTableBody.appendChild(row);
                 }
             } catch (error) {
+                console.error('Error al cargar stakes:', error);
                 messageElement.textContent = 'Error al cargar stakes: ' + error.message;
             }
         }
 
-        // Aprobar WPLS si es necesario
-        async function approveWplsIfNeeded(amount) {
-            const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
-            const allowance = await wplsContract.allowance(address, contractAddress);
-            const amountWei = ethers.utils.parseEther(amount);
-            if (allowance.lt(amountWei)) {
-                const tx = await wplsContract.approve(contractAddress, ethers.constants.MaxUint256);
-                messageElement.textContent = 'Aprobando WPLS...';
-                await tx.wait();
-                messageElement.textContent = 'Aprobación de WPLS exitosa';
-            }
-        }
-
-        // Realizar el stake
-        document.getElementById('stakeButton').addEventListener('click', async () => {
-            if (!signer) {
-                messageElement.textContent = 'Por favor, conecta tu wallet primero';
-                return;
-            }
-            const amount = document.getElementById('amountInput').value;
-            const duration = document.getElementById('durationSelect').value;
-            if (!amount || !duration) {
-                messageElement.textContent = 'Ingresa una cantidad y duración válidas';
-                return;
-            }
-            try {
-                await approveWplsIfNeeded(amount);
-                const tx = await contract.stake(ethers.utils.parseEther(amount), duration);
-                messageElement.textContent = 'Realizando stake...';
-                await tx.wait();
-                messageElement.textContent = 'Stake realizado con éxito';
-                loadUserStakes();
-            } catch (error) {
-                messageElement.textContent = 'Error durante el stake: ' + error.message;
-            }
-        });
-
         // Reclamar recompensas
         window.claimRewards = async (stakeId) => {
             try {
-                const tx = await contract.claimRewards(stakeId);
+                console.log('Reclamando recompensas para stake ID:', stakeId);
+                const tx = await contract.claimRewards(stakeId, {
+                    gasLimit: 200000 // Ajustar según sea necesario
+                });
                 messageElement.textContent = 'Reclamando recompensas...';
+                console.log('Transacción de reclamo enviada:', tx.hash);
                 await tx.wait();
                 messageElement.textContent = 'Recompensas reclamadas con éxito';
-                loadUserStakes();
+                console.log('Recompensas reclamadas');
+                await loadUserStakes();
             } catch (error) {
+                console.error('Error al reclamar recompensas:', error);
                 messageElement.textContent = 'Error al reclamar recompensas: ' + error.message;
             }
         };
@@ -1059,12 +1155,18 @@
         // Terminar stake antes de tiempo
         window.terminateEarly = async (stakeId) => {
             try {
-                const tx = await contract.terminateStakeEarly(stakeId);
+                console.log('Terminando stake antes de tiempo para ID:', stakeId);
+                const tx = await contract.terminateStakeEarly(stakeId, {
+                    gasLimit: 200000 // Ajustar según sea necesario
+                });
                 messageElement.textContent = 'Terminando stake antes de tiempo...';
+                console.log('Transacción de terminación enviada:', tx.hash);
                 await tx.wait();
                 messageElement.textContent = 'Stake terminado con éxito';
-                loadUserStakes();
+                console.log('Stake terminado');
+                await loadUserStakes();
             } catch (error) {
+                console.error('Error al terminar stake:', error);
                 messageElement.textContent = 'Error al terminar stake: ' + error.message;
             }
         };
