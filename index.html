@@ -130,7 +130,6 @@
         </table>
     </div>
 
-    <!-- Usar una CDN más confiable para ethers.js -->
     <script src="https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js"></script>
     <script>
         // Verificar que ethers.js se haya cargado
@@ -611,10 +610,11 @@
             try {
                 const balance = await provider.getBalance(address);
                 const minBalance = ethers.parseEther('0.1');
-                if (balance.lt(minBalance)) {
+                log(`Saldo PLS (bigint): ${balance}, Min requerido: ${minBalance}`);
+                if (balance < minBalance) {
                     throw new Error(`Saldo insuficiente de PLS. Tienes ${ethers.formatEther(balance)} PLS, necesitas al menos 0.1 PLS`);
                 }
-                log(`Saldo PLS: ${ethers.formatEther(balance)}`);
+                log(`Saldo PLS suficiente: ${ethers.formatEther(balance)}`);
                 return true;
             } catch (error) {
                 log(`Error al verificar saldo PLS: ${error.message}`);
@@ -627,11 +627,11 @@
             try {
                 const balance = await wplsContract.balanceOf(address);
                 balanceDisplay.textContent = `Saldo WPLS: ${ethers.formatEther(balance)}`;
-                log(`Saldo WPLS: ${ethers.formatEther(balance)}`);
+                log(`Saldo WPLS (bigint): ${balance}`);
                 if (amount) {
                     const amountWei = ethers.parseEther(amount);
-                    if (balance.lt(amountWei)) {
-                        throw new Error(`Saldo insuficiente. Tienes ${ethers.formatEther(balance)} WPLS, necesitas ${amount} WPLS`);
+                    if (balance < amountWei) {
+                        throw new Error(`Saldo insuficiente. Tienes ${ethers.formatEther(balance)} WPLS, necesitas INTERESTING ${amount} WPLS`);
                     }
                 }
                 return true;
@@ -646,9 +646,8 @@
             try {
                 const amountWei = ethers.parseEther(amount);
                 const allowance = await wplsContract.allowance(address, contractAddress);
-                log(`Allowance actual: ${ethers.formatEther(allowance)}, Requerido: ${amount}`);
-
-                if (allowance.lt(amountWei)) {
+                log(`Allowance actual (bigint): ${allowance}, Requerido: ${amountWei}`);
+                if (allowance < amountWei) {
                     updateStatus('Aprobando WPLS...');
                     showMessage('Solicitando aprobación en MetaMask...');
                     const tx = await wplsContract.approve(contractAddress, amountWei, {
