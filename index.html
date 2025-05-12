@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staking DApp - PATOCUAC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+        }
+        input, select, button {
+            margin: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            width: 80%;
+            max-width: 800px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        #message {
+            color: #d9534f;
+            font-weight: bold;
+        }
+        #addressDisplay {
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>Staking DApp - PATOCUAC</h1>
+    <div id="walletSection">
+        <button id="connectButton">Conectar Wallet</button>
+        <p id="addressDisplay">Wallet no conectada</p>
+    </div>
+
+    <div id="stakeSection">
+        <h2>Hacer Stake</h2>
+        <input type="number" id="amountInput" placeholder="Cantidad de WPLS" min="0" step="0.01">
+        <select id="durationSelect">
+            <option value="">Selecciona duración</option>
+            <option value="2592000">30 días</option>
+            <option value="5184000">60 días</option>
+            <option value="7776000">90 días</option>
+            <option value="15552000">180 días</option>
+            <option value="31104000">360 días</option>
+        </select>
+        <button id="stakeButton">Hacer Stake</button>
+    </div>
+
+    <div id="stakesSection">
+        <h2>Tus Stakes</h2>
+        <table id="stakesTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>WPLS Staked</th>
+                    <th>Duración (días)</th>
+                    <th>Inicio</th>
+                    <th>Fin</th>
+                    <th>Recompensa (PWR)</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Stakes serán insertados aquí -->
+            </tbody>
+        </table>
+    </div>
+
+    <p id="message"></p>
+
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <script>
+        // ABI del contrato PATOCUAC (ejemplo simplificado, reemplaza con el ABI real)
+        const contractABI = [
+            {
+                "inputs": [
+                    { "internalType": "uint256", "name": "amount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "duration", "type": "uint256" }
+                ],
+                "name": "stake",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    { "internalType": "uint256", "name": "stakeId", "type": "uint256" }
+                ],
+                "name": "claimRewards",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    { "internalType": "uint256", "name": "stakeId", "type": "uint256" }
+                ],
+                "name": "terminateStakeEarly",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    { "internalType": "address", "name": "user", "type": "address" }
+                ],
+                "name": "getUserStakes",
+                "outputs": [
+                    { "internalType": "uint256[]", "name": "", "type": "uint256[]" }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    { "internalType": "uint256", "name": "stakeId", "type": "uint256" }
+                ],
+                "name": "getStakeInfo",
+                "outputs": [
+                    { "internalType": "uint256", "name": "wplsAmount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "duration", "type": "uint256" },
+                    { "internalType": "uint256", "name": "startTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "endTime", "type": "uint256" },
+                    { "internalType": "uint256", "name": "rewardAmount", "type": "uint256" },
+                    { "internalType": "bool", "name": "isActive", "type": "bool" },
+                    { "internalType": "bool", "name": "isClaimed", "type": "bool" }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+
+        // Dirección del contrato desplegado (reemplaza con la dirección real)
+        const contractAddress = 'CONTRACT_ADDRESS';
+
+        // Dirección del token WPLS
+        const wplsAddress = '0xA1077a294dDE1B09bB078844df40758a5D0f9a27';
+
+        // ABI mínimo para WPLS (ERC20)
+        const wplsABI = [
+            {
+                "constant": false,
+                "inputs": [
+                    { "name": "spender", "type": "address" },
+                    { "name": "amount", "type": "uint256" }
+                ],
+                "name": "approve",
+                "outputs": [{ "name": "", "type": "bool" }],
+                "type": "function"
+            },
+            {
+                "constant": true,
+                "inputs": [
+                    { "name": "owner", "type": "address" },
+                    { "name": "spender", "type": "address" }
+                ],
+                "name": "allowance",
+                "outputs": [{ "name": "", "type": "uint256" }],
+                "type": "function"
+            },
+            {
+                "constant": true,
+                "inputs": [
+                    { "name": "account", "type": "address" }
+                ],
+                "name": "balanceOf",
+                "outputs": [{ "name": "", "type": "uint256" }],
+                "type": "function"
+            }
+        ];
+
+        // Network ID para PulseChain (369 en hexadecimal)
+        const pulseChainId = '0x171';
+
+        let provider;
+        let signer;
+        let address;
+        let contract;
+        const messageElement = document.getElementById('message');
+        const stakesTableBody = document.getElementById('stakesTable').querySelector('tbody');
+
+        // Conectar la wallet
+        document.getElementById('connectButton').addEventListener('click', async () => {
+            if (window.ethereum) {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    signer = provider.getSigner();
+                    address = await signer.getAddress();
+                    document.getElementById('addressDisplay').textContent = `Dirección: ${address}`;
+
+                    // Verificar red
+                    const network = await provider.getNetwork();
+                    if (network.chainId !== parseInt(pulseChainId, 16)) {
+                        messageElement.textContent = 'Por favor, cambia a PulseChain';
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_switchEthereumChain',
+                                params: [{ chainId: pulseChainId }],
+                            });
+                        } catch (switchError) {
+                            messageElement.textContent = 'Error al cambiar a PulseChain: ' + switchError.message;
+                            return;
+                        }
+                    }
+
+                    // Instancia del contrato
+                    contract = new ethers.Contract(contractAddress, contractABI, signer);
+
+                    messageElement.textContent = `Wallet conectada: ${address}`;
+                    loadUserStakes();
+                } catch (error) {
+                    messageElement.textContent = 'Error al conectar la wallet: ' + error.message;
+                }
+            } else {
+                messageElement.textContent = 'Por favor, instala MetaMask';
+            }
+        });
+
+        // Cargar stakes del usuario
+        async function loadUserStakes() {
+            if (!contract || !address) return;
+
+            try {
+                const stakeIds = await contract.getUserStakes(address);
+                stakesTableBody.innerHTML = '';
+
+                for (let id of stakeIds) {
+                    const stake = await contract.getStakeInfo(id);
+                    const now = Math.floor(Date.now() / 1000);
+                    const canClaim = stake.isActive && !stake.isClaimed && now >= (stake.endTime - 3600);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${id.toString()}</td>
+                        <td>${ethers.utils.formatEther(stake.wplsAmount)}</td>
+                        <td>${stake.duration / 86400}</td>
+                        <td>${new Date(stake.startTime * 1000).toLocaleString()}</td>
+                        <td>${new Date(stake.endTime * 1000).toLocaleString()}</td>
+                        <td>${ethers.utils.formatEther(stake.rewardAmount)}</td>
+                        <td>${stake.isActive ? 'Activo' : 'Inactivo'}</td>
+                        <td>
+                            ${canClaim ? `<button onclick="claimRewards(${id})">Reclamar</button>` : ''}
+                            ${stake.isActive ? `<button onclick="terminateEarly(${id})">Terminar Antes</button>` : ''}
+                        </td>
+                    `;
+                    stakesTableBody.appendChild(row);
+                }
+            } catch (error) {
+                messageElement.textContent = 'Error al cargar stakes: ' + error.message;
+            }
+        }
+
+        // Aprobar WPLS si es necesario
+        async function approveWplsIfNeeded(amount) {
+            const wplsContract = new ethers.Contract(wplsAddress, wplsABI, signer);
+            const allowance = await wplsContract.allowance(address, contractAddress);
+            const amountWei = ethers.utils.parseEther(amount);
+            if (allowance.lt(amountWei)) {
+                const tx = await wplsContract.approve(contractAddress, ethers.constants.MaxUint256);
+                messageElement.textContent = 'Aprobando WPLS...';
+                await tx.wait();
+                messageElement.textContent = 'Aprobación de WPLS exitosa';
+            }
+        }
+
+        // Realizar el stake
+        document.getElementById('stakeButton').addEventListener('click', async () => {
+            if (!signer) {
+                messageElement.textContent = 'Por favor, conecta tu wallet primero';
+                return;
+            }
+            const amount = document.getElementById('amountInput').value;
+            const duration = document.getElementById('durationSelect').value;
+            if (!amount || !duration) {
+                messageElement.textContent = 'Ingresa una cantidad y duración válidas';
+                return;
+            }
+            try {
+                await approveWplsIfNeeded(amount);
+                const tx = await contract.stake(ethers.utils.parseEther(amount), duration);
+                messageElement.textContent = 'Realizando stake...';
+                await tx.wait();
+                messageElement.textContent = 'Stake realizado con éxito';
+                loadUserStakes();
+            } catch (error) {
+                messageElement.textContent = 'Error durante el stake: ' + error.message;
+            }
+        });
+
+        // Reclamar recompensas
+        window.claimRewards = async (stakeId) => {
+            try {
+                const tx = await contract.claimRewards(stakeId);
+                messageElement.textContent = 'Reclamando recompensas...';
+                await tx.wait();
+                messageElement.textContent = 'Recompensas reclamadas con éxito';
+                loadUserStakes();
+            } catch (error) {
+                messageElement.textContent = 'Error al reclamar recompensas: ' + error.message;
+            }
+        };
+
+        // Terminar stake antes de tiempo
+        window.terminateEarly = async (stakeId) => {
+            try {
+                const tx = await contract.terminateStakeEarly(stakeId);
+                messageElement.textContent = 'Terminando stake antes de tiempo...';
+                await tx.wait();
+                messageElement.textContent = 'Stake terminado con éxito';
+                loadUserStakes();
+            } catch (error) {
+                messageElement.textContent = 'Error al terminar stake: ' + error.message;
+            }
+        };
+    </script>
+</body>
+</html>
