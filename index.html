@@ -12,12 +12,8 @@
             background-color: #f5f5f5;
             max-width: 900px;
         }
-        h1 {
-            color: #333;
-        }
-        h2 {
-            color: #555;
-        }
+        h1 { color: #333; }
+        h2 { color: #555; }
         input, select, button {
             margin: 10px;
             padding: 10px;
@@ -32,9 +28,7 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        button:hover {
-            background-color: #45a049;
-        }
+        button:hover { background-color: #45a049; }
         button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
@@ -79,9 +73,7 @@
                 width: 100%;
                 box-sizing: border-box;
             }
-            table {
-                font-size: 14px;
-            }
+            table { font-size: 14px; }
         }
     </style>
 </head>
@@ -138,7 +130,7 @@
             throw new Error('ethers.js no está definido');
         }
 
-        // ABI completo del contrato PATOCUAC
+        // ABI del contrato de staking (PATOCUAC)
         const contractABI = [
             {
                 "inputs": [],
@@ -498,7 +490,7 @@
             }
         ];
 
-        // Dirección del contrato desplegado
+        // Dirección del contrato de staking
         const contractAddress = '0xd85Be7f78c03a9ccA7934a9c53080e1C1De9DaaA';
 
         // Dirección del token WPLS en PulseChain
@@ -631,7 +623,7 @@
                 if (amount) {
                     const amountWei = ethers.parseEther(amount);
                     if (balance < amountWei) {
-                        throw new Error(`Saldo insuficiente. Tienes ${ethers.formatEther(balance)} WPLS, necesitas INTERESTING ${amount} WPLS`);
+                        throw new Error(`Saldo insuficiente. Tienes ${ethers.formatEther(balance)} WPLS, necesitas ${amount} WPLS`);
                     }
                 }
                 return true;
@@ -641,10 +633,11 @@
             }
         }
 
-        // Aprobar WPLS
+        // Aprobar WPLS para el contrato de staking
         async function approveWpls(amount) {
             try {
                 const amountWei = ethers.parseEther(amount);
+                log(`Verificando allowance para ${amount} WPLS (${amountWei})`);
                 const allowance = await wplsContract.allowance(address, contractAddress);
                 log(`Allowance actual (bigint): ${allowance}, Requerido: ${amountWei}`);
                 if (allowance < amountWei) {
@@ -658,7 +651,7 @@
                     showMessage('Aprobación exitosa');
                     updateStatus('WPLS aprobado');
                 } else {
-                    showMessage('Aprobación no necesaria');
+                    showMessage('Aprobación no necesaria, allowance suficiente');
                     log('Allowance suficiente');
                 }
                 stakeButton.disabled = false;
@@ -669,8 +662,8 @@
             }
         }
 
-        // Conectar wallet
-        async function connectWallet() {
+        // Conectar wallet con reintentos
+        async function connectWallet(attempt = 1, maxAttempts = 3) {
             if (!window.ethereum) {
                 showMessage('Por favor, instala MetaMask', true);
                 updateStatus('MetaMask no detectado', true);
@@ -678,7 +671,7 @@
             }
 
             try {
-                log('Solicitando conexión a MetaMask...');
+                log(`Intento ${attempt} de conexión a MetaMask...`);
                 updateStatus('Conectando wallet...');
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 if (!accounts || accounts.length === 0) {
@@ -716,7 +709,12 @@
                 approveButton.disabled = false;
                 await loadUserStakes();
             } catch (error) {
-                log(`Error al conectar: ${error.message}`);
+                log(`Error al conectar (intento ${attempt}): ${error.message}`);
+                if (attempt < maxAttempts) {
+                    log(`Reintentando conexión (${attempt + 1}/${maxAttempts})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return connectWallet(attempt + 1, maxAttempts);
+                }
                 showMessage(`Error al conectar: ${error.message}`, true);
                 updateStatus('Error al conectar', true);
             }
@@ -747,7 +745,8 @@
                 updateStatus('Realizando stake...');
                 showMessage('Solicitando stake en MetaMask...');
                 log(`Iniciando stake: ${amount} WPLS, duración: ${duration} segundos`);
-                const tx = await contract.stake(ethers.parseEther(amount), duration, {
+                const amountWei = ethers.parseEther(amount);
+                const tx = await contract.stake(amountWei, duration, {
                     gasLimit: 350000
                 });
                 log(`Transacción de stake: ${tx.hash}`);
@@ -778,14 +777,14 @@
                 for (const id of stakeIds) {
                     const stake = await contract.getStakeInfo(id);
                     const now = Math.floor(Date.now() / 1000);
-                    const canClaim = stake.isActive && !stake.isClaimed && now >= (stake.endTime - 3600);
+                    const canClaim = stake.isActive && !stake.isClaimed && now >= (Number(stake.endTime) - 3600);
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${id.toString()}</td>
                         <td>${ethers.formatEther(stake.wplsAmount)}</td>
-                        <td>${stake.duration / 86400}</td>
-                        <td>${new Date(stake.startTime * 1000).toLocaleString()}</td>
-                        <td>${new Date(stake.endTime * 1000).toLocaleString()}</td>
+                        <td>${Number(stake.duration) / 86400}</td>
+                        <td>${new Date(Number(stake.startTime) * 1000).toLocaleString()}</td>
+                        <td>${new Date(Number(stake.endTime) * 1000).toLocaleString()}</td>
                         <td>${ethers.formatEther(stake.rewardAmount)}</td>
                         <td>${stake.isActive ? 'Activo' : 'Inactivo'}</td>
                         <td>
@@ -894,6 +893,13 @@
             try {
                 await checkPlsBalance();
                 await checkWplsBalance(amount);
+                // Verificar allowance antes de stake
+                const amountWei = ethers.parseEther(amount);
+                const allowance = await wplsContract.allowance(address, contractAddress);
+                if (allowance < amountWei) {
+                    showMessage('Por favor, aprueba la cantidad de WPLS primero', true);
+                    return;
+                }
                 await stake(amount, duration);
             } catch (error) {
                 showMessage(error.message, true);
