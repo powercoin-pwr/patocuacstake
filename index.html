@@ -130,8 +130,15 @@
         </table>
     </div>
 
-    <script src="https://cdn.ethers.io/lib/ethers-6.13.2.umd.min.js"></script>
+    <!-- Usar una CDN más confiable para ethers.js -->
+    <script src="https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js"></script>
     <script>
+        // Verificar que ethers.js se haya cargado
+        if (typeof ethers === 'undefined') {
+            alert('Error crítico: No se pudo cargar ethers.js. Por favor, verifica tu conexión a internet o usa una copia local.');
+            throw new Error('ethers.js no está definido');
+        }
+
         // ABI completo del contrato PATOCUAC
         const contractABI = [
             {
@@ -676,7 +683,7 @@
                 updateStatus('Conectando wallet...');
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 if (!accounts || accounts.length === 0) {
-                    throw new Error('No se seleccionaron cuentas');
+                    throw new Error('No se seleccionaron cuentas. Por favor, acepta la conexión en MetaMask.');
                 }
 
                 provider = new ethers.BrowserProvider(window.ethereum);
@@ -691,7 +698,7 @@
                 if (Number(network.chainId) !== parseInt(pulseChainId, 16)) {
                     log('Red incorrecta, configurando PulseChain...');
                     const success = await setupPulseChain();
-                    if (!success) throw new Error('No se pudo cambiar a PulseChain');
+                    if (!success) throw new Error('No se pudo cambiar a PulseChain. Por favor, configura PulseChain manualmente.');
                 } else {
                     log('Red correcta: PulseChain');
                 }
@@ -841,7 +848,14 @@
         };
 
         // Evento para conectar wallet
-        connectButton.addEventListener('click', connectWallet);
+        connectButton.addEventListener('click', async () => {
+            if (!window.ethereum) {
+                showMessage('Por favor, instala MetaMask', true);
+                updateStatus('MetaMask no detectado', true);
+                return;
+            }
+            await connectWallet();
+        });
 
         // Evento para desconectar wallet
         disconnectButton.addEventListener('click', disconnectWallet);
@@ -902,6 +916,15 @@
                     await connectWallet();
                 }
             });
+        }
+
+        // Verificación inicial
+        log('DApp iniciada. Verificando MetaMask...');
+        if (!window.ethereum) {
+            showMessage('MetaMask no está instalado. Por favor, instala MetaMask para usar esta DApp.', true);
+            updateStatus('MetaMask no detectado', true);
+        } else {
+            updateStatus('Listo para conectar');
         }
     </script>
 </body>
